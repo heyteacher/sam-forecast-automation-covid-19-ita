@@ -27,6 +27,8 @@ Only the first state machine execution creates the persistent entities __Dataset
 
 The `AWS Step Functions` is launched by a `AWS Cloud Watch Event Rule` which start every day at 16:00 PM UTC. 
 
+![AWS Step Functions Forecast](/images/stepfunctions_graph.png "AWS Step Functions Forecast")
+
 Below the daily flow of `AWS Step Functions` steps:
 
 1. `CheckDatasetExist` is the start state, check if the __Dataset__ and (__Dataset Group__) exists. 
