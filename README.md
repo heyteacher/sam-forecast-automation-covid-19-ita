@@ -1,6 +1,10 @@
 AWS SAM template for AWS Forecast automation 
 ============================================
 
+[![Liberpay](http://img.shields.io/liberapay/receives/heyteacher.svg?logo=liberapay)](https://liberapay.com/heyteacher/donate)
+[![GitHub license](https://img.shields.io/github/license/heyteacher/sam-forecast-automation-covid-19-ita)](https://github.com/heyteacher/sam-forecast-automation-covid-19-ita/blob/master/LICENSE)
+[![GitHub commit](https://img.shields.io/github/last-commit/heyteacher/sam-forecast-automation-covid-19-ita)](https://github.com/heyteacher/sam-forecast-automation-covid-19-ita/commits/master)
+
 A `AWS SAM template` for `AWS Forecast` process automation using `AWS Step Functions` state machine, based on a real case study: Forecast of new daily positive based on COVID-19 italian datasets.  
 
 This `AWS SAM template` is running in my `AWS Account` and push daily the forecast in this repository: https://github.com/heyteacher/COVID-19 (folder `dati_json_forecast`)
