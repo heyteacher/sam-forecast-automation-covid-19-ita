@@ -1,0 +1,13 @@
+aws --region <AWS_REGION> cloudformation package \
+    --template-file template.yaml \
+    --output-template-file packaged.yaml \
+    --s3-bucket <SAM_TEMPLATE_BUCKET> \
+&& \
+aws --region <AWS_REGION> cloudformation deploy \
+    --template-file packaged.yaml  \
+    --stack-name forecast-automation-covid-19-ita \
+    --capabilities CAPABILITY_IAM \
+    --parameter-overrides  GitHubToken=<GITHUB_TOKEN> GitHubRepo=<GITHUB_REPO> GitHubUser=<GITHUB_USER> \
+|| \
+aws cloudformation describe-stack-events \
+    --stack-name forecast-automation-covid-19-ita

@@ -1,0 +1,2 @@
+sam local invoke $1 -region <AWS_REGION> \
+--parameter-overrides  GitHubToken=<GITHUB_TOKEN> GitHubRepo=<GITHUB_REPO> GitHubUser=<GITHUB_USER> 

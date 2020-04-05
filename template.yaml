@@ -1,0 +1,624 @@
+AWSTemplateFormatVersion: 2010-09-09
+Transform: AWS::Serverless-2016-10-31
+Description: COVID-19 Italian Forecast Step Functions automation process  
+
+Parameters:
+
+  # github configuration
+  GitHubToken:
+    Type: String
+    Default: ''
+  GitHubRepo:
+    Type: String
+    Default: ''
+  GitHubUser:
+    Type: String
+    Default: ''
+
+  # input bucket 
+  ForecastInputBucketName:
+    Type: String
+    Default: covid-forecast-input
+  ForecastInputBucketKey:
+    Type: String
+    Default: covid_region_imput.csv 
+
+  # output bucket
+  ForecastOutputBucketName:
+    Type: String
+    Default: covid-forecast-output
+  ForecastOutputBucketKey:
+    Type: String
+    Default: export
+  
+  # URL of input dataset
+  InputDatasetURL:
+    Type: String
+    Default: https://raw.githubusercontent.com/heyteacher/COVID-19/master/dati-json/dpc-covid19-ita-regioni.json
+
+  # Forecast configuration
+  ForecastDatasetName:
+    Type: String
+    Default: covid_dataset 
+  ForecastDatasetGroupName:
+    Type: String
+    Default: covid_dataset_group 
+  ForecastPredictorName: 
+    Type: String
+    Default: covid19_predictor
+  ForecastDatasetImportJobNamePrefix:
+    Type: String
+    Default: covid_forecast_import
+  ForecastNamePrefix: 
+    Type: String
+    Default: covid_forecast
+  ForecastExportJobNamePrefix:
+    Type: String
+    Default: covid_forecast_export
+
+  # State maschine event rule schedule expression
+  StateMachineEventRuleScheduleExpression:
+    Type: String
+    Default: cron(0 16 * * ? *)
+
+  # Debug mode: force dataset import job creation even if data are old
+  ForceCreateDatasetImportJob:
+    Type: String
+    Default: 'false'
+  # Debug mode: force datadorce extension even if  data are old
+  ForceExtendData:
+    Type: String
+    Default: 'false'
+
+
+Resources:
+
+  # describe the dataset (check if exists)
+  DescribeDatasetFunction:
+    Type: AWS::Serverless::Function 
+    Properties:
+      CodeUri: src/
+      Handler: lambda.describeDatasetHandler
+      Runtime: nodejs12.x
+      Timeout: 180
+      MemorySize: 512
+      Policies:
+      - Statement:
+        - Effect: Allow
+          Action:
+          - forecast:DescribeDataset
+          Resource:
+          - !Sub arn:${AWS::Partition}:forecast:${AWS::Region}:${AWS::AccountId}:dataset/${ForecastDatasetName}
+      Environment:
+        Variables:
+          FORECAST_DATASET_ARN: !Sub  arn:${AWS::Partition}:forecast:${AWS::Region}:${AWS::AccountId}:dataset/${ForecastDatasetName}
+ 
+  # extend data from ufficial repository 
+  CreateDatasetFunction:
+    Type: AWS::Serverless::Function 
+    Properties:
+      CodeUri: src/
+      Handler: lambda.createDatasetHandler
+      Runtime: nodejs12.x
+      Timeout: 180
+      MemorySize: 512
+      Policies:
+      - Statement:
+        - Effect: Allow
+          Action:
+          - forecast:CreateDataset
+          - forecast:CreateDatasetGroup
+          Resource:
+          - '*'
+      - Statement:
+        - Effect: Allow
+          Action:
+          - forecast:DeleteDataset
+          Resource:
+          - !Sub arn:${AWS::Partition}:forecast:${AWS::Region}:${AWS::AccountId}:dataset/${ForecastDatasetName}
+      Environment:
+        Variables:
+          FORECAST_DATASET_NAME: !Ref ForecastDatasetName
+          FORECAST_DATASET_GROUP_NAME: !Ref ForecastDatasetGroupName
+
+  # describe the preictor (check if exists)
+  DescribePredictorFunction:
+    Type: AWS::Serverless::Function 
+    Properties:
+      CodeUri: src/
+      Handler: lambda.describePredictorHandler
+      Runtime: nodejs12.x
+      Timeout: 180
+      MemorySize: 512
+      Policies:
+      - Statement:
+        - Effect: Allow
+          Action:
+          - forecast:DescribePredictor
+          Resource:
+          - !Sub arn:${AWS::Partition}:forecast:${AWS::Region}:${AWS::AccountId}:predictor/${ForecastPredictorName}
+      Environment:
+        Variables:
+          FORECAST_PREDICTOR_ARN: !Sub arn:${AWS::Partition}:forecast:${AWS::Region}:${AWS::AccountId}:predictor/${ForecastPredictorName}
+
+  # create the predictor
+  CreatePredictorFunction:
+    Type: AWS::Serverless::Function 
+    Properties:
+      CodeUri: src/
+      Handler: lambda.createPredictorHandler
+      Runtime: nodejs12.x
+      Timeout: 180
+      MemorySize: 512
+      Policies:
+      - Statement:
+        - Effect: Allow
+          Action:
+          - forecast:CreatePredictor
+          Resource:
+          - !Sub arn:${AWS::Partition}:forecast:${AWS::Region}:${AWS::AccountId}:dataset-group/${ForecastDatasetGroupName}
+      Environment:
+        Variables:
+          FORECAST_PREDICTOR_NAME: !Ref ForecastPredictorName
+          FORECAST_DATASET_GROUP_ARN: !Sub  arn:${AWS::Partition}:forecast:${AWS::Region}:${AWS::AccountId}:dataset-group/${ForecastDatasetGroupName}
+
+  # extend data from ufficial repository 
+  ExtendDatasetFunction:
+    Type: AWS::Serverless::Function 
+    Properties:
+      CodeUri: src/
+      Handler: lambda.extendDatasetHandler
+      Runtime: nodejs12.x
+      Timeout: 180
+      MemorySize: 512
+      Environment:
+        Variables:
+          FORCE_EXTEND_DATA: !Ref ForceExtendData
+          FORCE_CREATE_DATASET_IMPORT_JOB: !Ref ForceCreateDatasetImportJob
+          GITHUB_TOKEN: !Ref GitHubToken
+          GITHUB_REPO: !Ref GitHubRepo
+          GITHUB_USER: !Ref GitHubUser 
+ 
+  # create dataset import with regional dataset
+  CreateDatasetImportJobFunction:
+    Type: AWS::Serverless::Function 
+    Properties:
+      CodeUri: src/
+      Handler: lambda.createDatasetImportJobHandler
+      Runtime: nodejs12.x
+      Timeout: 180
+      MemorySize: 512
+      Policies:
+        - S3CrudPolicy:
+            BucketName: !Sub ${ForecastInputBucketName}-${AWS::AccountId}
+        - Statement:
+          - Effect: Allow
+            Action:
+            - forecast:CreateDatasetImportJob
+            Resource:
+            - !Sub arn:${AWS::Partition}:forecast:${AWS::Region}:${AWS::AccountId}:dataset/${ForecastDatasetName}
+        - Statement:
+          - Effect: Allow
+            Action:
+            - iam:PassRole
+            Resource:
+            - !GetAtt S3ImportExportForecastIAMRole.Arn
+      Environment:
+        Variables:
+          FORCE_CREATE_DATASET_IMPORT_JOB: !Ref ForceCreateDatasetImportJob
+          INPUT_DATASET_URL: !Ref InputDatasetURL
+          FORECAST_INPUT_BUCKET_NAME: !Ref ForecastInputBucket
+          FORECAST_INPUT_BUCKET_KEY: !Ref ForecastInputBucketKey
+          FORECAST_DATASET_ARN: !Sub  arn:${AWS::Partition}:forecast:${AWS::Region}:${AWS::AccountId}:dataset/${ForecastDatasetName}
+          FORECAST_EXE_ROLE_ARN: !GetAtt S3ImportExportForecastIAMRole.Arn 
+          FORECAST_DATASET_IMPORT_JOB_NAME_PREFIX: !Ref ForecastDatasetImportJobNamePrefix
+
+  # create forecast
+  CreateForecastFunction:
+    Type: AWS::Serverless::Function 
+    Properties:
+      CodeUri: src/
+      Handler: lambda.createForecastHandler
+      Runtime: nodejs12.x
+      Timeout: 180
+      MemorySize: 512
+      Policies:
+      - Statement:
+        - Effect: Allow
+          Action:
+          - forecast:CreateForecast
+          Resource:
+            - !Sub arn:${AWS::Partition}:forecast:${AWS::Region}:${AWS::AccountId}:predictor/${ForecastPredictorName}
+      Environment:
+        Variables:
+          FORECAST_NAME_PREFIX: !Ref ForecastNamePrefix
+          FORECAST_PREDICTOR_ARN: !Sub arn:${AWS::Partition}:forecast:${AWS::Region}:${AWS::AccountId}:predictor/${ForecastPredictorName}
+  
+  # create forecast export job
+  CreateForecastExportJobFunction:
+    Type: AWS::Serverless::Function 
+    Properties:
+      CodeUri: src/
+      Handler: lambda.createForecastExportJobHandler
+      Runtime: nodejs12.x
+      Timeout: 180
+      MemorySize: 512
+      Policies:
+      - Statement:
+        - Effect: Allow
+          Action:
+          - forecast:CreateForecastExportJob
+          Resource:
+          - !Sub arn:${AWS::Partition}:forecast:${AWS::Region}:${AWS::AccountId}:forecast/${ForecastNamePrefix}*
+      - Statement:
+        - Effect: Allow
+          Action:
+          - iam:PassRole
+          Resource:
+          - !GetAtt S3ImportExportForecastIAMRole.Arn      
+      Environment:
+        Variables:
+          FORECAST_EXE_ROLE_ARN: !GetAtt S3ImportExportForecastIAMRole.Arn 
+          FORECAST_OUTPUT_BUCKET_NAME: !Ref ForecastOutputBucket
+          FORECAST_OUTPUT_BUCKET_KEY: !Ref ForecastOutputBucketKey
+          FORECAST_ARN_PREFIX: !Sub arn:${AWS::Partition}:forecast:${AWS::Region}:${AWS::AccountId}:forecast/${ForecastNamePrefix}
+          FORECAST_EXPORT_JOB_NAME_PREFIX: !Ref ForecastExportJobNamePrefix
+
+  # triggered on push export dataset in S3, trasforn the CSV and push the JSON in github        
+  PushForecastInGithubFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ./src
+      Handler: lambda.pushForecastInGithubHandler
+      Runtime: nodejs12.x
+      Timeout: 300
+      Policies:
+        - S3CrudPolicy:
+            BucketName: !Sub ${ForecastOutputBucketName}-${AWS::AccountId}
+        - S3CrudPolicy:
+            BucketName: !Sub ${ForecastInputBucketName}-${AWS::AccountId}
+      Environment:
+        Variables:
+          GITHUB_TOKEN: !Ref GitHubToken
+          GITHUB_REPO: !Ref GitHubRepo
+          GITHUB_USER: !Ref GitHubUser
+          FORECAST_INPUT_BUCKET_NAME: !Ref ForecastInputBucket
+      Events:
+        CreateForecastExportJob:
+          Type: S3
+          Properties:
+            Bucket: !Ref ForecastOutputBucket 
+            Events: s3:ObjectCreated:*
+            Filter:
+              S3Key:
+                Rules:
+                  - Name: prefix
+                    Value: !Ref ForecastOutputBucketKey
+                  - Name: suffix
+                    Value: .csv
+  
+  # delete dataset import and export job
+  DeleteDatasetImportExportJobFunction:
+    Type: AWS::Serverless::Function 
+    Properties:
+      CodeUri: src/
+      Handler: lambda.deleteDatasetImportExportJob
+      Runtime: nodejs12.x
+      Timeout: 180
+      MemorySize: 512
+      Policies:
+      - Statement:
+        - Effect: Allow
+          Action:
+          - forecast:DeleteForecastExportJob
+          Resource:
+          - !Sub arn:${AWS::Partition}:forecast:${AWS::Region}:${AWS::AccountId}:forecast-export-job/${ForecastNamePrefix}*
+      - Statement:
+        - Effect: Allow
+          Action:
+          - forecast:DeleteDatasetImportJob
+          Resource:
+          - !Sub arn:${AWS::Partition}:forecast:${AWS::Region}:${AWS::AccountId}:dataset-import-job/${ForecastDatasetName}/${ForecastDatasetImportJobNamePrefix}*
+      - Statement:
+        - Effect: Allow
+          Action:
+          - forecast:DescribePredictor
+          Resource:
+          - !Sub arn:${AWS::Partition}:forecast:${AWS::Region}:${AWS::AccountId}:predictor/${ForecastPredictorName}
+      Environment:
+        Variables:
+          FORECAST_DATASET_IMPORT_JOB_ARN_PREFIX: !Sub arn:${AWS::Partition}:forecast:${AWS::Region}:${AWS::AccountId}:dataset-import-job/${ForecastDatasetName}/${ForecastDatasetImportJobNamePrefix}
+          FORECAST_EXPORT_JOB_ARN_PREFIX: !Sub arn:${AWS::Partition}:forecast:${AWS::Region}:${AWS::AccountId}:forecast-export-job
+          FORECAST_EXPORT_JOB_NAME_PREFIX: !Ref ForecastExportJobNamePrefix
+          FORECAST_NAME_PREFIX: !Ref ForecastNamePrefix
+          FORECAST_PREDICTOR_ARN: !Sub arn:${AWS::Partition}:forecast:${AWS::Region}:${AWS::AccountId}:predictor/${ForecastPredictorName}
+
+  # delete forecast
+  DeleteForecastFunction:
+    Type: AWS::Serverless::Function 
+    Properties:
+      CodeUri: src/
+      Handler: lambda.deleteForecastHandler
+      Runtime: nodejs12.x
+      Timeout: 180
+      MemorySize: 512
+      Policies:
+      - Statement:
+        - Effect: Allow
+          Action:
+          - forecast:DeleteForecast
+          Resource:
+          - !Sub arn:${AWS::Partition}:forecast:${AWS::Region}:${AWS::AccountId}:forecast/${ForecastNamePrefix}*
+      Environment:
+        Variables:
+          FORECAST_ARN_PREFIX: !Sub arn:${AWS::Partition}:forecast:${AWS::Region}:${AWS::AccountId}:forecast/${ForecastNamePrefix}
+                   
+  # input bucket for input dataset to be imported
+  ForecastInputBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub ${ForecastInputBucketName}-${AWS::AccountId}
+      AccessControl: Private
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: True
+        BlockPublicPolicy: True
+        IgnorePublicAcls: True
+        RestrictPublicBuckets: True
+
+  # oputput bucket for exported dataset output
+  ForecastOutputBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub ${ForecastOutputBucketName}-${AWS::AccountId}
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: True
+        BlockPublicPolicy: True
+        IgnorePublicAcls: True
+        RestrictPublicBuckets: True
+
+  # StateMachine(AWS Step functions): For orchestrating the update forecast Lambda functions
+  ForecastStateMachine:
+    Type: AWS::StepFunctions::StateMachine
+    Properties:
+      RoleArn: !GetAtt ForecastStateMachineIAMRole.Arn
+      StateMachineName: ForecastStateMachine
+
+      DefinitionString:
+        !Sub
+          - |-
+            {
+              "Comment": "The workflow for update forecast based on latest predictor",
+              "StartAt": "CheckDatasetExists",
+              "States": {
+                "CheckDatasetExists": {
+                  "Type": "Task",
+                  "Resource": "${DescribeDatasetFunctionArn}",
+                  "Next": "ExtendDataset",
+                  "Catch": [
+                    {
+                      "ErrorEquals": [ "ResourceNotFoundException" ],
+                      "Next": "CreateDataset"
+                    }
+                  ]
+                },                
+                "CreateDataset": {
+                  "Type": "Task",
+                  "Resource": "${CreateDatasetFunctionArn}",
+                  "Next": "ExtendDataset"
+                },
+                "ExtendDataset": {
+                  "Type": "Task",
+                  "Resource": "${ExtendDatasetFunctionArn}",
+                  "Retry": [{
+                    "ErrorEquals": ["ToBeUpdatedError"],
+                    "IntervalSeconds": 180,
+                    "MaxAttempts": 40
+                  }],
+                  "Next": "WaitGithubRawRefresh"
+                },
+                "WaitGithubRawRefresh": {
+                  "Type": "Wait",
+                  "Seconds": 300,
+                  "Next": "CreateDatasetImportJob"
+                },
+                "CreateDatasetImportJob": {
+                  "Type": "Task",
+                  "Resource": "${CreateDatasetImportJobFunctionArn}",
+                  "Next": "CheckPredictorExists"
+                },
+                "CheckPredictorExists": {
+                  "Type": "Task",
+                  "Resource": "${DescribePredictorFunctionArn}",
+                  "Next": "WaitDatasetImport",
+                  "Catch": [
+                    {
+                      "ErrorEquals": [ "ResourceNotFoundException" ],
+                      "Next": "CreatePredictor"
+                    }
+                  ]
+                },
+                "WaitDatasetImport": {
+                  "Type": "Wait",
+                  "Seconds": 600,
+                  "Next": "CreateForecast"
+                },                
+                "CreatePredictor": {
+                  "Type": "Task",
+                  "Resource": "${CreatePredictorFunctionArn}",
+                  "Next": "WaitPredictorCreation"
+                },
+                "WaitPredictorCreation": {
+                  "Type": "Wait",
+                  "Seconds": 3000,
+                  "Next": "CreateForecast"
+                },
+                "CreateForecast": {
+                 "Type": "Task",
+                 "Resource": "${CreateForecastFunctionArn}",
+                 "Retry": [{
+                   "ErrorEquals": ["ResourceInUseException"],
+                   "IntervalSeconds": 300,
+                   "MaxAttempts": 10
+                 }],
+                 "Next": "WaitForecastCreation"
+                },
+                "WaitForecastCreation": {
+                  "Type": "Wait",
+                  "Seconds": 900,
+                  "Next": "CreateForecastExportJob"
+                },
+                "CreateForecastExportJob": {
+                  "Type": "Task",
+                  "Resource": "${CreateForecastExportJobFunctionArn}",
+                  "Retry": [{
+                    "ErrorEquals": ["ResourceInUseException"],
+                    "IntervalSeconds": 180,
+                    "MaxAttempts": 4
+                  }],
+                  "Next": "WaitExportJob"
+                },
+                "WaitExportJob": {
+                  "Type": "Wait",
+                  "Seconds": 300,
+                  "Next": "DeleteDatasetImportExportJob"
+                },
+                "DeleteDatasetImportExportJob": {
+                  "Type": "Task",
+                  "Resource": "${DeleteDatasetImportExportJobFunctionArn}",
+                  "Retry": [{
+                    "ErrorEquals": ["ResourceInUseException"],
+                    "IntervalSeconds": 180,
+                    "MaxAttempts": 4
+                  }],
+                  "Next": "WaitDeleteDatasetImportExportJob"
+                },
+                "WaitDeleteDatasetImportExportJob": {
+                  "Type": "Wait",
+                  "Seconds": 300,
+                  "Next": "DeleteForecast"
+                },
+                "DeleteForecast": {
+                  "Type": "Task",
+                  "Resource": "${DeleteForecastFunctionArn}",
+                  "Retry": [{
+                    "ErrorEquals": ["ResourceInUseException"],
+                    "IntervalSeconds": 180,
+                    "MaxAttempts": 4
+                  }],
+                  "Next": "Done"
+                },
+                "Done": {
+                  "Type": "Succeed"
+                }
+              }
+            }
+          - ExtendDatasetFunctionArn: !GetAtt ExtendDatasetFunction.Arn
+            CreateDatasetImportJobFunctionArn: !GetAtt CreateDatasetImportJobFunction.Arn
+            DescribeDatasetFunctionArn: !GetAtt DescribeDatasetFunction.Arn
+            CreateDatasetFunctionArn: !GetAtt CreateDatasetFunction.Arn
+            DescribePredictorFunctionArn: !GetAtt DescribePredictorFunction.Arn
+            CreatePredictorFunctionArn: !GetAtt CreatePredictorFunction.Arn
+            CreateForecastFunctionArn: !GetAtt CreateForecastFunction.Arn
+            CreateForecastExportJobFunctionArn: !GetAtt CreateForecastExportJobFunction.Arn
+            DeleteDatasetImportExportJobFunctionArn: !GetAtt DeleteDatasetImportExportJobFunction.Arn
+            DeleteForecastFunctionArn: !GetAtt DeleteForecastFunction.Arn
+
+  # ForecastStateMachine's role 
+  ForecastStateMachineIAMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Action:
+              - sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service:
+                - !Sub states.${AWS::Region}.amazonaws.com
+      Path: /
+      Policies:
+        - PolicyName: CallingLambdaFunction
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+            - Effect: Allow
+              Action:
+              - lambda:InvokeFunction
+              Resource:
+              - !GetAtt DescribeDatasetFunction.Arn
+              - !GetAtt CreateDatasetFunction.Arn
+              - !GetAtt DescribePredictorFunction.Arn
+              - !GetAtt CreatePredictorFunction.Arn
+              - !GetAtt ExtendDatasetFunction.Arn
+              - !GetAtt CreateDatasetImportJobFunction.Arn
+              - !GetAtt CreateForecastFunction.Arn
+              - !GetAtt CreateForecastExportJobFunction.Arn
+              - !GetAtt DeleteDatasetImportExportJobFunction.Arn
+              - !GetAtt DeleteForecastFunction.Arn
+       
+  # event rule when invoke state machine
+  ForecastStateMachineEventRule:
+      Type: AWS::Events::Rule
+      DependsOn: ForecastStateMachine
+      Properties:
+        Description: The trigger for workflow to update forecast
+        ScheduleExpression: !Ref StateMachineEventRuleScheduleExpression
+        State: ENABLED
+        Targets:
+        - Arn: !Sub arn:${AWS::Partition}:states:${AWS::Region}:${AWS::AccountId}:stateMachine:ForecastStateMachine
+          Id: ForecastStateMachineTarget
+          RoleArn: !GetAtt ForecastStateMachineEventRuleIAMRole.Arn
+
+  # event rule's role
+  ForecastStateMachineEventRuleIAMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service: events.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Path: /
+      Policies:
+      - PolicyName: TriggeringModelGenerationStateMachineExecution
+        PolicyDocument:
+          Version: 2012-10-17
+          Statement:
+          - Effect: Allow
+            Action:
+            - states:StartExecution
+            Resource:
+            - !Sub arn:${AWS::Partition}:states:${AWS::Region}:${AWS::AccountId}:stateMachine:ForecastStateMachine
+
+  # forecast role operating on S3 import export bucket
+  S3ImportExportForecastIAMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service: forecast.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Path: /
+      Policies:
+      - PolicyName: S3CrudPolicy
+        PolicyDocument:
+          Version: 2012-10-17
+          Statement:
+          - Effect: Allow
+            Action:
+            - s3:ListBucket
+            - s3:GetObject
+            - s3:PutObject
+            Resource:
+            - !GetAtt ForecastInputBucket.Arn
+            - !Sub ${ForecastInputBucket.Arn}/*
+            - !GetAtt ForecastOutputBucket.Arn
+            - !Sub ${ForecastOutputBucket.Arn}/*

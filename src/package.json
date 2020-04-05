@@ -1,0 +1,19 @@
+{
+    "name": "sam-forecast-automation-covid-19-ita",
+    "version": "1.0.0",
+    "description": "sam-forecast-automation-covid-19-ita",
+    "repository": "https://github.com/heyteacher/sam-forecast-automation-covid-19-ita.git",
+    "author": "https://github.com/heyteacher",
+    "license": "MIT",
+    "dependencies": {
+        "@octokit/rest": "^16.43.1",
+        "aws-sdk": "^2.653.0",
+        "axios": "^0.19.2",
+        "crypto": "^1.0.1",
+        "csv-writer": "^1.6.0",
+        "fast-csv": "^4.1.3",
+        "moment": "^2.24.0"
+    },
+    "scripts": {},
+    "devDependencies": {}
+}

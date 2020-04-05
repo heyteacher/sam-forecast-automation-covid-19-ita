@@ -1,0 +1,2 @@
+sam local invoke PushForecastInGithubFunction -region <AWS_REGION>  -e test/events/push_github_event.json \
+    --parameter-overrides  GitHubToken=<GITHUB_TOKEN> GitHubRepo=<GITHUB_REPO> GitHubUser=<GITHUB_USER> 
