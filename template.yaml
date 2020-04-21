@@ -4,7 +4,7 @@ Description: COVID-19 Italian Forecast Step Functions automation process
 
 Parameters:
 
-  # github configuration
+  ### Github configuration
   GitHubToken:
     Type: String
     Default: ''
@@ -15,31 +15,35 @@ Parameters:
     Type: String
     Default: ''
 
-  # input bucket 
+  ### URL of input dataset
+  InputDatasetURL:
+    Type: String
+    Default: https://raw.githubusercontent.com/heyteacher/COVID-19/master/dati-json/dpc-covid19-ita-regioni.json   
+
+  ### forecast buckets
   ForecastInputBucketName:
     Type: String
     Default: covid-forecast-input
   ForecastInputBucketKey:
     Type: String
     Default: covid_region_imput.csv 
-
-  # output bucket
+  ForecastRelatedInputBucketKey:
+    Type: String
+    Default: covid_related_region_imput.csv 
   ForecastOutputBucketName:
     Type: String
     Default: covid-forecast-output
   ForecastOutputBucketKey:
     Type: String
-    Default: export
-  
-  # URL of input dataset
-  InputDatasetURL:
-    Type: String
-    Default: https://raw.githubusercontent.com/heyteacher/COVID-19/master/dati-json/dpc-covid19-ita-regioni.json
+    Default: export  
 
-  # Forecast configuration
+  ### Forecast configuration
   ForecastDatasetName:
     Type: String
     Default: covid_dataset 
+  ForecastRelatedDatasetName:
+    Type: String
+    Default: covid_related_dataset 
   ForecastDatasetGroupName:
     Type: String
     Default: covid_dataset_group 
@@ -49,27 +53,52 @@ Parameters:
   ForecastDatasetImportJobNamePrefix:
     Type: String
     Default: covid_forecast_import
+  ForecastRelatedDatasetImportJobNamePrefix:
+    Type: String
+    Default: covid_forecast_related_import
   ForecastNamePrefix: 
     Type: String
     Default: covid_forecast
   ForecastExportJobNamePrefix:
     Type: String
     Default: covid_forecast_export
-
-  # State maschine event rule schedule expression
+  # Forecast Algorithm 
+  # - arn:aws:forecast:::algorithm/ARIMA
+  # - arn:aws:forecast:::algorithm/Deep_AR_Plus
+  # - arn:aws:forecast:::algorithm/ETS
+  # - arn:aws:forecast:::algorithm/NPTS
+  # - arn:aws:forecast:::algorithm/Prophet
+  # Empty string 'performAutoML' is set to true   
+  ForecastAlgorithmArn:  
+    Type: String
+    Default: arn:aws:forecast:::algorithm/Deep_AR_Plus
+  
+  # data frequency, value accepted: Y, M, W, D, H, 30min, 15min, 10min, 5min, 1min
+  ForecastDataFrequency:  
+    Type: String
+    Default: D
+  ForecastHorizon:  
+    Type: Number
+    Default: 7
+  
+  ### State maschine event rule schedule expression (minute, hour, day_of_month, month, day_of_week, year)
   StateMachineEventRuleScheduleExpression:
     Type: String
     Default: cron(0 16 * * ? *)
+  # comma separated days of week when generate forecast. 0: Sunday, 1: Monday, ... 6: Saturnday  
+  ForecastDaysOfWeekExecution:
+    Type: String
+    Default: '5'
 
-  # Debug mode: force dataset import job creation even if data are old
+  ### Debug mode
+  # force dataset import job creation even if data are old
   ForceCreateDatasetImportJob:
     Type: String
     Default: 'false'
-  # Debug mode: force datadorce extension even if  data are old
+  # force datadorce extension even if  data are old
   ForceExtendData:
     Type: String
     Default: 'false'
-
 
 Resources:
 
@@ -80,8 +109,8 @@ Resources:
       CodeUri: src/
       Handler: lambda.describeDatasetHandler
       Runtime: nodejs12.x
-      Timeout: 180
-      MemorySize: 512
+      Timeout: 30
+      MemorySize: 128
       Policies:
       - Statement:
         - Effect: Allow
@@ -100,8 +129,8 @@ Resources:
       CodeUri: src/
       Handler: lambda.createDatasetHandler
       Runtime: nodejs12.x
-      Timeout: 180
-      MemorySize: 512
+      Timeout: 30
+      MemorySize: 128
       Policies:
       - Statement:
         - Effect: Allow
@@ -116,20 +145,23 @@ Resources:
           - forecast:DeleteDataset
           Resource:
           - !Sub arn:${AWS::Partition}:forecast:${AWS::Region}:${AWS::AccountId}:dataset/${ForecastDatasetName}
+          - !Sub arn:${AWS::Partition}:forecast:${AWS::Region}:${AWS::AccountId}:dataset/${ForecastRelatedDatasetName}
       Environment:
         Variables:
           FORECAST_DATASET_NAME: !Ref ForecastDatasetName
+          FORECAST_RELATED_DATASET_NAME: !Ref ForecastRelatedDatasetName
           FORECAST_DATASET_GROUP_NAME: !Ref ForecastDatasetGroupName
+          FORECAST_DATA_FREQUENCY: !Ref ForecastDataFrequency
 
-  # describe the preictor (check if exists)
+  # describe the predictor (check if exists)
   DescribePredictorFunction:
     Type: AWS::Serverless::Function 
     Properties:
       CodeUri: src/
       Handler: lambda.describePredictorHandler
       Runtime: nodejs12.x
-      Timeout: 180
-      MemorySize: 512
+      Timeout: 30
+      MemorySize: 128
       Policies:
       - Statement:
         - Effect: Allow
@@ -148,8 +180,8 @@ Resources:
       CodeUri: src/
       Handler: lambda.createPredictorHandler
       Runtime: nodejs12.x
-      Timeout: 180
-      MemorySize: 512
+      Timeout: 30
+      MemorySize: 128
       Policies:
       - Statement:
         - Effect: Allow
@@ -161,6 +193,9 @@ Resources:
         Variables:
           FORECAST_PREDICTOR_NAME: !Ref ForecastPredictorName
           FORECAST_DATASET_GROUP_ARN: !Sub  arn:${AWS::Partition}:forecast:${AWS::Region}:${AWS::AccountId}:dataset-group/${ForecastDatasetGroupName}
+          FORECAST_HORIZON: !Ref ForecastHorizon
+          FORECAST_DATA_FREQUENCY: !Ref ForecastDataFrequency
+          FORECAST_ALGORITHM_ARN: !Ref ForecastAlgorithmArn
 
   # extend data from ufficial repository 
   ExtendDatasetFunction:
@@ -169,7 +204,7 @@ Resources:
       CodeUri: src/
       Handler: lambda.extendDatasetHandler
       Runtime: nodejs12.x
-      Timeout: 180
+      Timeout: 30
       MemorySize: 512
       Environment:
         Variables:
@@ -179,6 +214,27 @@ Resources:
           GITHUB_REPO: !Ref GitHubRepo
           GITHUB_USER: !Ref GitHubUser 
  
+
+   # check if the today 'day of week' is present in ForecastDaysOfWeekExecution
+  CheckDaysOfWeekForecastExecFunction:
+    Type: AWS::Serverless::Function 
+    Properties:
+      InlineCode: |
+          exports.handler = async() => {
+              let ret = { isToExecuteForecast: false }
+              if (process.env.FORECAST_DAYS_OF_WEEK_EXECUTION) {
+                ret = { isToExecuteForecast: process.env.FORECAST_DAYS_OF_WEEK_EXECUTION.indexOf(new Date().getDay()) >= 0}
+              }
+              return ret
+          }
+      Handler: index.handler
+      Runtime: nodejs12.x
+      Timeout: 30
+      MemorySize: 128
+      Environment:
+        Variables:
+          FORECAST_DAYS_OF_WEEK_EXECUTION: !Ref ForecastDaysOfWeekExecution
+          
   # create dataset import with regional dataset
   CreateDatasetImportJobFunction:
     Type: AWS::Serverless::Function 
@@ -186,7 +242,7 @@ Resources:
       CodeUri: src/
       Handler: lambda.createDatasetImportJobHandler
       Runtime: nodejs12.x
-      Timeout: 180
+      Timeout: 30
       MemorySize: 512
       Policies:
         - S3CrudPolicy:
@@ -197,6 +253,7 @@ Resources:
             - forecast:CreateDatasetImportJob
             Resource:
             - !Sub arn:${AWS::Partition}:forecast:${AWS::Region}:${AWS::AccountId}:dataset/${ForecastDatasetName}
+            - !Sub arn:${AWS::Partition}:forecast:${AWS::Region}:${AWS::AccountId}:dataset/${ForecastRelatedDatasetName}
         - Statement:
           - Effect: Allow
             Action:
@@ -209,9 +266,14 @@ Resources:
           INPUT_DATASET_URL: !Ref InputDatasetURL
           FORECAST_INPUT_BUCKET_NAME: !Ref ForecastInputBucket
           FORECAST_INPUT_BUCKET_KEY: !Ref ForecastInputBucketKey
+          FORECAST_RELATED_INPUT_BUCKET_KEY: !Ref ForecastRelatedInputBucketKey
           FORECAST_DATASET_ARN: !Sub  arn:${AWS::Partition}:forecast:${AWS::Region}:${AWS::AccountId}:dataset/${ForecastDatasetName}
+          FORECAST_RELATED_DATASET_ARN: !Sub  arn:${AWS::Partition}:forecast:${AWS::Region}:${AWS::AccountId}:dataset/${ForecastRelatedDatasetName}
           FORECAST_EXE_ROLE_ARN: !GetAtt S3ImportExportForecastIAMRole.Arn 
           FORECAST_DATASET_IMPORT_JOB_NAME_PREFIX: !Ref ForecastDatasetImportJobNamePrefix
+          FORECAST_RELATED_DATASET_IMPORT_JOB_NAME_PREFIX: !Ref ForecastRelatedDatasetImportJobNamePrefix
+          FORECAST_HORIZON: !Ref ForecastHorizon
+          FORECAST_DATA_FREQUENCY: !Ref ForecastDataFrequency
 
   # create forecast
   CreateForecastFunction:
@@ -220,8 +282,8 @@ Resources:
       CodeUri: src/
       Handler: lambda.createForecastHandler
       Runtime: nodejs12.x
-      Timeout: 180
-      MemorySize: 512
+      Timeout: 30
+      MemorySize: 128
       Policies:
       - Statement:
         - Effect: Allow
@@ -241,8 +303,8 @@ Resources:
       CodeUri: src/
       Handler: lambda.createForecastExportJobHandler
       Runtime: nodejs12.x
-      Timeout: 180
-      MemorySize: 512
+      Timeout: 30
+      MemorySize: 128
       Policies:
       - Statement:
         - Effect: Allow
@@ -283,6 +345,7 @@ Resources:
           GITHUB_REPO: !Ref GitHubRepo
           GITHUB_USER: !Ref GitHubUser
           FORECAST_INPUT_BUCKET_NAME: !Ref ForecastInputBucket
+          FORECAST_ALGORITHM_ARN: !Ref ForecastAlgorithmArn
       Events:
         CreateForecastExportJob:
           Type: S3
@@ -304,8 +367,8 @@ Resources:
       CodeUri: src/
       Handler: lambda.deleteDatasetImportExportJob
       Runtime: nodejs12.x
-      Timeout: 180
-      MemorySize: 512
+      Timeout: 30
+      MemorySize: 128
       Policies:
       - Statement:
         - Effect: Allow
@@ -319,6 +382,7 @@ Resources:
           - forecast:DeleteDatasetImportJob
           Resource:
           - !Sub arn:${AWS::Partition}:forecast:${AWS::Region}:${AWS::AccountId}:dataset-import-job/${ForecastDatasetName}/${ForecastDatasetImportJobNamePrefix}*
+          - !Sub arn:${AWS::Partition}:forecast:${AWS::Region}:${AWS::AccountId}:dataset-import-job/${ForecastRelatedDatasetName}/${ForecastRelatedDatasetImportJobNamePrefix}*
       - Statement:
         - Effect: Allow
           Action:
@@ -328,6 +392,7 @@ Resources:
       Environment:
         Variables:
           FORECAST_DATASET_IMPORT_JOB_ARN_PREFIX: !Sub arn:${AWS::Partition}:forecast:${AWS::Region}:${AWS::AccountId}:dataset-import-job/${ForecastDatasetName}/${ForecastDatasetImportJobNamePrefix}
+          FORECAST_RELATED_DATASET_IMPORT_JOB_ARN_PREFIX: !Sub arn:${AWS::Partition}:forecast:${AWS::Region}:${AWS::AccountId}:dataset-import-job/${ForecastRelatedDatasetName}/${ForecastRelatedDatasetImportJobNamePrefix}
           FORECAST_EXPORT_JOB_ARN_PREFIX: !Sub arn:${AWS::Partition}:forecast:${AWS::Region}:${AWS::AccountId}:forecast-export-job
           FORECAST_EXPORT_JOB_NAME_PREFIX: !Ref ForecastExportJobNamePrefix
           FORECAST_NAME_PREFIX: !Ref ForecastNamePrefix
@@ -340,8 +405,8 @@ Resources:
       CodeUri: src/
       Handler: lambda.deleteForecastHandler
       Runtime: nodejs12.x
-      Timeout: 180
-      MemorySize: 512
+      Timeout: 30
+      MemorySize: 128
       Policies:
       - Statement:
         - Effect: Allow
@@ -388,12 +453,39 @@ Resources:
           - |-
             {
               "Comment": "The workflow for update forecast based on latest predictor",
-              "StartAt": "CheckDatasetExists",
+              "StartAt": "ExtendDataset",
               "States": {
+                "ExtendDataset": {
+                  "Type": "Task",
+                  "Resource": "${ExtendDatasetFunctionArn}",
+                  "Retry": [{
+                    "ErrorEquals": ["ToBeUpdatedError"],
+                    "IntervalSeconds": 180,
+                    "MaxAttempts": 40,
+                    "BackoffRate": 1
+                  }],
+                  "Next": "CheckDaysOfWeekForecastExec"
+                },
+                "CheckDaysOfWeekForecastExec": {
+                  "Type": "Task",
+                  "Resource": "${CheckDaysOfWeekForecastExecFunctionArn}",
+                  "Next": "ChoiceForecastExecution"
+                },     
+                "ChoiceForecastExecution": {
+                  "Type": "Choice",
+                  "Choices": [
+                    {
+                      "Variable": "$.isToExecuteForecast",
+                      "BooleanEquals": true,
+                      "Next": "CheckDatasetExists"
+                    }  
+                  ],
+                  "Default": "Done"
+                },
                 "CheckDatasetExists": {
                   "Type": "Task",
                   "Resource": "${DescribeDatasetFunctionArn}",
-                  "Next": "ExtendDataset",
+                  "Next": "WaitGithubRawRefresh",
                   "Catch": [
                     {
                       "ErrorEquals": [ "ResourceNotFoundException" ],
@@ -404,16 +496,6 @@ Resources:
                 "CreateDataset": {
                   "Type": "Task",
                   "Resource": "${CreateDatasetFunctionArn}",
-                  "Next": "ExtendDataset"
-                },
-                "ExtendDataset": {
-                  "Type": "Task",
-                  "Resource": "${ExtendDatasetFunctionArn}",
-                  "Retry": [{
-                    "ErrorEquals": ["ToBeUpdatedError"],
-                    "IntervalSeconds": 180,
-                    "MaxAttempts": 40
-                  }],
                   "Next": "WaitGithubRawRefresh"
                 },
                 "WaitGithubRawRefresh": {
@@ -424,23 +506,23 @@ Resources:
                 "CreateDatasetImportJob": {
                   "Type": "Task",
                   "Resource": "${CreateDatasetImportJobFunctionArn}",
+                  "Next": "WaitDatasetImport"
+                },
+                "WaitDatasetImport": {
+                  "Type": "Wait",
+                  "Seconds": 600,
                   "Next": "CheckPredictorExists"
                 },
                 "CheckPredictorExists": {
                   "Type": "Task",
                   "Resource": "${DescribePredictorFunctionArn}",
-                  "Next": "WaitDatasetImport",
+                  "Next": "CreateForecast",
                   "Catch": [
                     {
                       "ErrorEquals": [ "ResourceNotFoundException" ],
                       "Next": "CreatePredictor"
                     }
                   ]
-                },
-                "WaitDatasetImport": {
-                  "Type": "Wait",
-                  "Seconds": 600,
-                  "Next": "CreateForecast"
                 },                
                 "CreatePredictor": {
                   "Type": "Task",
@@ -449,7 +531,7 @@ Resources:
                 },
                 "WaitPredictorCreation": {
                   "Type": "Wait",
-                  "Seconds": 3000,
+                  "Seconds": 3600,
                   "Next": "CreateForecast"
                 },
                 "CreateForecast": {
@@ -458,13 +540,14 @@ Resources:
                  "Retry": [{
                    "ErrorEquals": ["ResourceInUseException"],
                    "IntervalSeconds": 300,
-                   "MaxAttempts": 10
+                   "MaxAttempts": 30,
+                   "BackoffRate": 1
                  }],
                  "Next": "WaitForecastCreation"
                 },
                 "WaitForecastCreation": {
                   "Type": "Wait",
-                  "Seconds": 900,
+                  "Seconds": 600,
                   "Next": "CreateForecastExportJob"
                 },
                 "CreateForecastExportJob": {
@@ -473,7 +556,8 @@ Resources:
                   "Retry": [{
                     "ErrorEquals": ["ResourceInUseException"],
                     "IntervalSeconds": 180,
-                    "MaxAttempts": 4
+                    "MaxAttempts": 30,
+                    "BackoffRate": 1
                   }],
                   "Next": "WaitExportJob"
                 },
@@ -488,7 +572,8 @@ Resources:
                   "Retry": [{
                     "ErrorEquals": ["ResourceInUseException"],
                     "IntervalSeconds": 180,
-                    "MaxAttempts": 4
+                    "MaxAttempts": 4,
+                    "BackoffRate": 1
                   }],
                   "Next": "WaitDeleteDatasetImportExportJob"
                 },
@@ -503,7 +588,8 @@ Resources:
                   "Retry": [{
                     "ErrorEquals": ["ResourceInUseException"],
                     "IntervalSeconds": 180,
-                    "MaxAttempts": 4
+                    "MaxAttempts": 4,
+                    "BackoffRate": 1
                   }],
                   "Next": "Done"
                 },
@@ -522,6 +608,7 @@ Resources:
             CreateForecastExportJobFunctionArn: !GetAtt CreateForecastExportJobFunction.Arn
             DeleteDatasetImportExportJobFunctionArn: !GetAtt DeleteDatasetImportExportJobFunction.Arn
             DeleteForecastFunctionArn: !GetAtt DeleteForecastFunction.Arn
+            CheckDaysOfWeekForecastExecFunctionArn: !GetAtt CheckDaysOfWeekForecastExecFunction.Arn
 
   # ForecastStateMachine's role 
   ForecastStateMachineIAMRole:
@@ -556,6 +643,8 @@ Resources:
               - !GetAtt CreateForecastExportJobFunction.Arn
               - !GetAtt DeleteDatasetImportExportJobFunction.Arn
               - !GetAtt DeleteForecastFunction.Arn
+              - !GetAtt CheckDaysOfWeekForecastExecFunction.Arn
+
        
   # event rule when invoke state machine
   ForecastStateMachineEventRule:

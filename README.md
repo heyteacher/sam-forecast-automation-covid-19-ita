@@ -25,17 +25,21 @@ Because `AWS Step Functions` is a __Serverless State Machine__ which orchestrate
 
 Only the first state machine execution creates the persistent entities __Dataset__, __Dataset Group__ and __Predictor__, while during daily next executions, the forecast will update creating __Forecast Dataset Import Job__, __Forecast__ and __Export Job__
 
-The `AWS Step Functions` is launched by a `AWS Cloud Watch Event Rule` which start every day at 16:00 PM UTC. 
+The `AWS Step Functions` is launched by a `AWS Cloud Watch Event Rule` which start following the rule expression defined into `StateMachineEventRuleScheduleExpression` parameter. But the forecast is generated only in day of week defined into `ForecastDaysOfWeekExecution` parameter. 
 
 ![AWS Step Functions Forecast](/images/stepfunctions_graph.png "AWS Step Functions Forecast")
 
 Below the daily flow of `AWS Step Functions` steps:
 
+1. `Extend Dataset` is a specific task of case study, you can drop it. Download from daily official dataset, extend it and push in configured Github repository. It retries until a new dataset is pushed into official repository  
+
+1. `CheckDaysOfWeekForecastExec` is a simple inline lambda which set `isToExecuteForecast` = true if the day of week of today is in `ForecastDaysOfWeekExecution` parameter
+
+1. `ChoiceForecastExecution` is a choice on `isToExecuteForecast`: if `true` generate forecast otherwise go to `Done` task and exit
+
 1. `CheckDatasetExist` is the start state, check if the __Dataset__ and (__Dataset Group__) exists. 
 
    * If it doesn't exist means this is the first execution. `CreateDatase` create the __Dataset__ and __Dataset Group__
-
-1. `Extend Dataset` is a specific task of case study, you can drop it. Download from daily official dataset, extend it and push in configured Github repository. It retries until a new dataset is pushed into official repository  
 
 1. `WaitGithubRawRefresh` another specific task of case study which can be dopped. It wait some minute in order to be sure the github raw cache is refreshed after push
 
@@ -62,6 +66,8 @@ v
 
 1. `DeleteForecast` deletes the daily __Forecast__
 
+1. `Done` the end state of workflow
+
 Some tasks retries after a failure in order to wait that previous step is succesfully finished.
 
 The `AWS SAM Template` assign the minimum permission to each `AWS Lambda Functions` in order to complete his task. All the entities (`S3 Bucket`, `AWS Lambda Function`, `IAM Roles`, `AWS Step Functions`, `Event Rule`) are created/updated/deleted by `AWS SAM Template` stack, so no manual activies is needes.
@@ -75,7 +81,7 @@ Install
 
 1. install `nodejs` `aws-cli` `aws-sam-cli` `docker`
 
-1. generare `aws_ac-cess_key_id` e `aws_secret_access_key` from a AWS user with the permissions for create/update/delete CloudFormation stacks 
+1. generare `aws_ac-cess_key_id` and `aws_secret_access_key` from a AWS user with the permissions for create/update/delete CloudFormation stacks 
 
 1. create the github repository `<GITHUB_REPO>` in your account `<GITHUB_USER>` 
 

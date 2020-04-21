@@ -1,13 +1,12 @@
 const AWS = require('aws-sdk');
 const s3 = new AWS.S3();
-const iam = new AWS.IAM();
 const forecastservice = new AWS.ForecastService();
 const fastCsv = require('fast-csv');
 const axios = require('axios')
 const moment = require('moment');
 const { commitPushFiles } = require("./lib/git");
 const { buildDataFiles, stringifyCSV, orderByData } = require("./lib/data_file");
-const { replaceAccountId } = require("./lib/utils");
+const { replaceAccountId, calculateFrequencyMultiplier } = require("./lib/utils");
 
 const todaySuffix = moment().format('YYYYMMDD');
 
@@ -83,7 +82,58 @@ exports.createDatasetImportJobHandler = async() => {
         DatasetImportJobName: `${process.env.FORECAST_DATASET_IMPORT_JOB_NAME_PREFIX}_${todaySuffix}`,
         TimestampFormat: 'yyyy-MM-dd HH:mm:ss'
     };
-    console.log(`create dataset import job ${params.DatasetImportJobName} on dataset ${process.env.FORECAST_DATASET_ARN} with role ${process.env.FORECAST_EXE_ROLE_ARN} `)
+    console.log(`create dataset import job ${params.DatasetImportJobName} on dataset ${params.DatasetArn} with role ${params.DataSource.S3Config.RoleArn} `)
+    await forecastservice.createDatasetImportJob(params).promise()
+    return createDatasetImportJobRelated(regionalData)
+}
+
+/** 
+ * create dateset import job related
+ */
+const createDatasetImportJobRelated = async(regionalData) => {
+
+    const { frequency, multiplier } = calculateFrequencyMultiplier();
+    const windowInfTimestamp = moment(regionalData[regionalData.length - 1].data)
+        .add(-1 * multiplier * process.env.FORECAST_HORIZON,
+            frequency);
+    console.log('prepare CSV for forecast dataset related import')
+    const data = []
+    for await (const row of regionalData) {
+        data.push({
+                'item_id': row.denominazione_regione,
+                'timestamp': moment(row.data).format('YYYY-MM-DD HH:MM:ss'),
+                'related_value': row.tamponi
+            })
+            // copy missing data from past in order to cover the orizon
+        if (!moment(row.data).isBefore(windowInfTimestamp)) {
+            const horizonToAdd = (multiplier * process.env.FORECAST_HORIZON) + multiplier
+            data.push({
+                'item_id': row.denominazione_regione,
+                'timestamp': moment(row.data).add(horizonToAdd, frequency).format('YYYY-MM-DD HH:MM:ss'),
+                'related_value': row.tamponi
+            })
+        }
+    }
+    const objectParams = {
+        Bucket: process.env.FORECAST_INPUT_BUCKET_NAME,
+        Key: process.env.FORECAST_RELATED_INPUT_BUCKET_KEY,
+        Body: Buffer.from(stringifyCSV(data))
+    }
+    console.debug(`upload  ${process.env.FORECAST_INPUT_BUCKET_NAME}/${process.env.FORECAST_RELATED_INPUT_BUCKET_KEY}`)
+    await s3.upload(objectParams).promise()
+
+    const params = {
+        DataSource: {
+            S3Config: {
+                Path: `s3://${process.env.FORECAST_INPUT_BUCKET_NAME}/${process.env.FORECAST_RELATED_INPUT_BUCKET_KEY}`,
+                RoleArn: await replaceAccountId(process.env.FORECAST_EXE_ROLE_ARN),
+            }
+        },
+        DatasetArn: await replaceAccountId(process.env.FORECAST_RELATED_DATASET_ARN),
+        DatasetImportJobName: `${process.env.FORECAST_RELATED_DATASET_IMPORT_JOB_NAME_PREFIX}_${todaySuffix}`,
+        TimestampFormat: 'yyyy-MM-dd HH:mm:ss'
+    };
+    console.log(`create dataset import job ${params.DatasetImportJobName} on dataset ${params.DatasetArn} with role ${params.DataSource.S3Config.RoleArn} `)
     return forecastservice.createDatasetImportJob(params).promise()
 }
 
@@ -150,16 +200,19 @@ exports.pushForecastInGithubHandler = async(event) => {
     }).sort(orderByData);
     console.log('country forecast dataset last date:', countryRows[countryRows.length - 1].date);
 
+    const suffix = process.env.FORECAST_ALGORITHM_ARN ?
+        process.env.FORECAST_ALGORITHM_ARN.replace('arn:aws:forecast:::algorithm/', '-') :
+        ''
     const data = [{
-            path: `dati-json-forecast/covid19-ita-regioni-forecast.json`,
+            path: `dati-json-forecast/covid19-ita-regioni-forecast${suffix}.json`,
             content: rows
         },
         {
-            path: `dati-json-forecast/covid19-ita-andamento-nazionale-forecast.json`,
+            path: `dati-json-forecast/covid19-ita-andamento-nazionale-forecast${suffix}.json`,
             content: countryRows
         }
     ]
-    await commitPushFiles(data, `Amazon Forecast ${moment().format()}`)
+    await commitPushFiles(data, `Amazon-Forecast${suffix} ${moment().format()}`)
 
     // clean forecast output bucket
     console.info(`clean forecast output bucket ${objectParams.Bucket}`);
@@ -197,8 +250,21 @@ exports.deleteDatasetImportExportJob = async() => {
             DatasetImportJobArn: datasetImportJobArn,
         }).promise()
     } {
-        console.log(`skip deletion of first (predictor in use) dataset import job  ${datasetImportJobArn}`)
+        console.log(`skip deletion of first two (predictor in use) dataset import job  ${datasetImportJobArn}`)
     }
+
+    const relatedDatasetImportJobArn = await replaceAccountId(`${process.env.FORECAST_RELATED_DATASET_IMPORT_JOB_ARN_PREFIX}_${todaySuffix}`)
+
+    // skip deletion of the first dataset import job because is in use of predictor
+    if (predictor.DatasetImportJobArns.indexOf(relatedDatasetImportJobArn) < 0) {
+        console.log(`delete dataset import job ${relatedDatasetImportJobArn}`)
+        await forecastservice.deleteDatasetImportJob({
+            DatasetImportJobArn: relatedDatasetImportJobArn,
+        }).promise()
+    } {
+        console.log(`skip deletion of first two (predictor in use) dataset import job  ${relatedDatasetImportJobArn}`)
+    }
+
     // delete forecast export
     return deleteForecastExportJob()
 }
@@ -219,7 +285,7 @@ const deleteForecastExportJob = async() => {
  * delete forecast
  */
 exports.deleteForecastHandler = async() => {
-    const forecastArn = `${process.env.FORECAST_ARN_PREFIX}_${todaySuffix}`
+    const forecastArn = await replaceAccountId(`${process.env.FORECAST_ARN_PREFIX}_${todaySuffix}`)
     console.log(`delete forecast ${forecastArn}`)
     return forecastservice.deleteForecast({
         ForecastArn: forecastArn,
@@ -242,11 +308,12 @@ exports.describeDatasetHandler = async() => {
  */
 exports.createDatasetHandler = async() => {
     let createDatasetResp = null
+    let createRelatedDatasetResp = null
     try {
         const paramsDataset = {
             DatasetName: process.env.FORECAST_DATASET_NAME,
             DatasetType: 'TARGET_TIME_SERIES',
-            DataFrequency: 'D',
+            DataFrequency: process.env.FORECAST_DATA_FREQUENCY,
             Domain: 'CUSTOM',
             Schema: {
                 Attributes: [{
@@ -265,12 +332,17 @@ exports.createDatasetHandler = async() => {
             },
         };
         createDatasetResp = await forecastservice.createDataset(paramsDataset).promise()
-            // create dataset group
+
+        // create the related dataset
+        createRelatedDatasetResp = await createRelatedDatasetHandler();
+
+        // create dataset group
         const paramsDatasetGroup = {
             DatasetGroupName: `${process.env.FORECAST_DATASET_GROUP_NAME}`,
             Domain: 'CUSTOM',
             DatasetArns: [
-                createDatasetResp.DatasetArn
+                createDatasetResp.DatasetArn,
+                createRelatedDatasetResp.DatasetArn
             ]
         };
         console.log(`create dataset group ${paramsDatasetGroup.DatasetGroupName}`)
@@ -283,8 +355,44 @@ exports.createDatasetHandler = async() => {
                 DatasetArn: createDatasetResp.DatasetArn
             }).promise()
         }
+        // if error and related dataset was created, delete it 
+        if (createRelatedDatasetResp) {
+            console.log(`createDatasetG fails, delete dataset arn ${createRelatedDatasetResp.DatasetArn}`)
+            await forecastservice.deleteDataset({
+                DatasetArn: createRelatedDatasetResp.DatasetArn
+            }).promise()
+        }
         throw err
     }
+}
+
+/**
+ * create Related Dataset
+ */
+const createRelatedDatasetHandler = async() => {
+    const paramsDataset = {
+        DatasetName: process.env.FORECAST_RELATED_DATASET_NAME,
+        DatasetType: 'RELATED_TIME_SERIES',
+        DataFrequency: process.env.FORECAST_DATA_FREQUENCY,
+        Domain: 'CUSTOM',
+        Schema: {
+            Attributes: [{
+                    AttributeName: "item_id",
+                    AttributeType: "string"
+                },
+                {
+                    AttributeName: "timestamp",
+                    AttributeType: "timestamp"
+                },
+                {
+                    AttributeName: "related_value",
+                    AttributeType: "float"
+                }
+            ]
+        },
+    };
+    const createRelatedDatasetResp = await forecastservice.createDataset(paramsDataset).promise()
+    return createRelatedDatasetResp
 }
 
 /**
@@ -303,16 +411,21 @@ exports.describePredictorHandler = async() => {
  */
 exports.createPredictorHandler = async() => {
     const datasetGroupArn = await replaceAccountId(process.env.FORECAST_DATASET_GROUP_ARN)
+    const isEmptyForecast = !process.env.FORECAST_ALGORITHM_ARN || process.env.FORECAST_ALGORITHM_ARN == ''
     const params = {
         FeaturizationConfig: {
-            ForecastFrequency: 'D',
+            ForecastFrequency: process.env.FORECAST_DATA_FREQUENCY,
         },
-        ForecastHorizon: '8',
+        ForecastHorizon: process.env.FORECAST_HORIZON,
         InputDataConfig: {
             DatasetGroupArn: datasetGroupArn,
         },
         PredictorName: process.env.FORECAST_PREDICTOR_NAME,
-        PerformAutoML: true
+        PerformAutoML: isEmptyForecast // Perform Auto ML if no algorithm is specified
     };
+    if (!isEmptyForecast) {
+        params.AlgorithmArn = process.env.FORECAST_ALGORITHM_ARN
+    }
+    console.log(`create predictor params`, params)
     return await forecastservice.createPredictor(params).promise()
 }
