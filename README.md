@@ -72,9 +72,23 @@ Some tasks retries after a failure in order to wait that previous step is succes
 
 The `AWS SAM Template` assign the minimum permission to each `AWS Lambda Functions` in order to complete his task. All the entities (`S3 Bucket`, `AWS Lambda Function`, `IAM Roles`, `AWS Step Functions`, `Event Rule`) are created/updated/deleted by `AWS SAM Template` stack, so no manual activies is needes.
 
-Only `AWS Forecast` entities `Predictor`, the first `Dataset Import Job`, `Dataset` and `Dataset Group` must be deleted manually if you decide to delete `AWS SAM Template` stack.
 
-I spent a lot of time to improve the `AWS SAM Template` but I'm sure it could be better. So do not esitate so submit [Issue](https://github.com/heyteacher/sam-forecast-automation-covid-19-ita/issues ) or [Pull Request](https://github.com/heyteacher/sam-forecast-automation-covid-19-ita/pulls)
+Note
+----
+
+* this project is ispired by https://github.com/aws-samples/amazon-automated-forecast
+
+* __BE CAREFULL__ if yoy try to create a stack from this `SAM Template`. First execuction costs 4,00 EUR circa and next daily execution costs 1,00 EUR circa. 
+
+* I already run a stack in my `AWS Account` which produces forecast here https://github.com/heyteacher/COVID-19. So you can support this project making a donation [![Liberpay](https://liberapay.com/assets/widgets/donate.svg)](https://liberapay.com/heyteacher/donate)
+
+* Only `AWS Forecast` entities `Predictor`, the first `Dataset Import Job`, `Dataset` and `Dataset Group` must be deleted manually if you decide to delete `AWS SAM Template` stack.
+
+* All `AWS Lambda` are implemented in `NodeJs 12.X` 
+
+* `AWS Forecast` doesn't implement epidemiological forecasting scenario like COVID-19 Italian new cases series, so the algorithm is choosen by __PerformAutoML=True__. I'm not an expert, so help is appreciated in algorithm tuning for these use case https://docs.aws.amazon.com/forecast/index.html
+
+* I spent a lot of time to improve the `AWS SAM Template` but I'm sure it could be better. So do not esitate so submit [Issue](https://github.com/heyteacher/sam-forecast-automation-covid-19-ita/issues ) or [Pull Request](https://github.com/heyteacher/sam-forecast-automation-covid-19-ita/pulls)
 
 Install
 -------
