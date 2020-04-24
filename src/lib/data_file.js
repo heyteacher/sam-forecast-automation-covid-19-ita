@@ -195,6 +195,10 @@ const extendData = (data, isProvince) => {
                     nuovi_terapia_intensiva: data[index].terapia_intensiva - (isToReset(prev, curr) ? 0 : data[index - 1].terapia_intensiva),
                     tamponi_ieri: isToReset(prev, curr) ? 0 : data[index - 1].tamponi,
                     nuovi_tamponi: data[index].tamponi - (isToReset(prev, curr) ? 0 : data[index - 1].tamponi),
+                    casi_testati_ieri: isToReset(prev, curr) ? 0 : data[index - 1].casi_testati,
+                    nuovi_casi_testati: !isToReset(prev, curr) && data[index - 1].casi_testati == null ?
+                        0 : data[index].casi_testati - (isToReset(prev, curr) ?
+                            0 : data[index - 1].casi_testati),
                 })
         }
         prev = data[index]
