@@ -15,6 +15,18 @@ Parameters:
     Type: String
     Default: ''
 
+  ### SES configuration
+  SESIdentityName:
+    Type: String
+    Default: ''
+  SESRegionData:
+    Type: String
+    Default: ''
+  SESProvinceData:
+    Type: String
+    Default: ''
+  
+
   ### URL of input dataset
   InputDatasetURL:
     Type: String
@@ -84,11 +96,11 @@ Parameters:
   ### State maschine event rule schedule expression (minute, hour, day_of_month, month, day_of_week, year)
   StateMachineEventRuleScheduleExpression:
     Type: String
-    Default: cron(0 16 * * ? *)
+    Default: cron(50 14 * * ? *)
   # comma separated days of week when generate forecast. 0: Sunday, 1: Monday, ... 6: Saturnday  
   ForecastDaysOfWeekExecution:
     Type: String
-    Default: '5'
+    Default: ''
 
   ### Debug mode
   # force dataset import job creation even if data are old
@@ -204,7 +216,7 @@ Resources:
       CodeUri: src/
       Handler: lambda.extendDatasetHandler
       Runtime: nodejs12.x
-      Timeout: 30
+      Timeout: 60
       MemorySize: 512
       Environment:
         Variables:
@@ -212,7 +224,13 @@ Resources:
           FORCE_CREATE_DATASET_IMPORT_JOB: !Ref ForceCreateDatasetImportJob
           GITHUB_TOKEN: !Ref GitHubToken
           GITHUB_REPO: !Ref GitHubRepo
-          GITHUB_USER: !Ref GitHubUser 
+          GITHUB_USER: !Ref GitHubUser
+          SES_IDENTITY_NAME: !Ref SESIdentityName
+          SES_REGION_DATA: !Ref SESRegionData
+          SES_PROVINCE_DATA: !Ref SESProvinceData
+      Policies:
+        - SESCrudPolicy:
+            IdentityName: !Ref SESIdentityName
  
 
    # check if the today 'day of week' is present in ForecastDaysOfWeekExecution

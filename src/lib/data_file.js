@@ -1,6 +1,8 @@
 const axios = require('axios'),
     moment = require('moment'),
-    createCsvStringifier = require('csv-writer').createObjectCsvStringifier;
+    createCsvStringifier = require('csv-writer').createObjectCsvStringifier,
+    AWS = require('aws-sdk'),
+    ses = new AWS.SES();
 
 exports.stringifyCSV = (data) => {
     const header = {
@@ -144,13 +146,64 @@ exports.buildDataFiles = async(day) => {
         targetRegionDate == today,
         "province updated",
         targetProvDate == today);
-    return {
-        allUpdated: targetCountryDate == today &&
-            targetRegionDate == today &&
-            targetProvDate == today,
-        data: data,
-        regionalData: regionalData
 
+    const allUpdated = targetCountryDate == today &&
+        targetRegionDate == today &&
+        targetProvDate == today
+
+    if ((allUpdated && data.length > 0) || process.env.FORCE_EXTEND_DATA == 'true') {
+        await sendMail(originResponseCountry.data, originResponseRegion.data, originResponseProv.data)
+    }
+    return {
+        allUpdated: allUpdated,
+        data: data
+    }
+}
+
+
+const sendMail = async(countryData, regionalData, provinceData) => {
+    if (!process.env.SES_IDENTITY_NAME || process.env.SES_IDENTITY_NAME.trim() == "") {
+        return
+    }
+    const dailyCountryData = getDailyRows(extendData(countryData))[0]
+    const dailyRegionData = getDailyRows(extendData(regionalData.filter(row => row.denominazione_regione === process.env.SES_REGION_DATA)))[0]
+    const dailyProvinceData = getDailyRows(extendData(provinceData.filter(row => row.denominazione_provincia === process.env.SES_PROVINCE_DATA), true))[0]
+
+    var params = {
+        Destination: {
+            ToAddresses: [process.env.SES_IDENTITY_NAME]
+        },
+        Message: {
+            Body: {
+                Text: {
+                    Data: `Italy
+    Daily Confirmed: ${dailyCountryData.totale_nuovi_casi} (${Math.round(dailyCountryData.totale_nuovi_casi/dailyCountryData.nuovi_casi_testati*10000)/100}% on Daily People Tested) 
+    Daily Tests: ${dailyCountryData.nuovi_tamponi}
+    Daily People Tested: ${dailyCountryData.nuovi_casi_testati}
+    Daily Intensive Care: ${dailyCountryData.nuovi_terapia_intensiva}
+    Daily Deads: ${dailyCountryData.nuovi_deceduti}
+    Total Intensive Care: ${dailyCountryData.terapia_intensiva}
+${process.env.SES_REGION_DATA}
+    Daily Confirmed: ${dailyRegionData.totale_nuovi_casi} (${Math.round(dailyRegionData.totale_nuovi_casi/dailyRegionData.nuovi_casi_testati*10000)/100}% on Daily People Tested)
+    Dailt Tests: ${dailyRegionData.nuovi_tamponi} 
+    Daily People Tested: ${dailyRegionData.nuovi_casi_testati}
+    Daily Intensive Care: ${dailyRegionData.nuovi_terapia_intensiva}
+    Daily Deads: ${dailyRegionData.nuovi_deceduti}
+    Total Intensive Care: ${dailyRegionData.terapia_intensiva}
+${process.env.SES_PROVINCE_DATA}
+    Nuovi casi: ${dailyProvinceData.totale_nuovi_casi}
+`
+                }
+            },
+            Subject: { Data: "COVID-19 Update" }
+        },
+        Source: process.env.SES_IDENTITY_NAME
+    };
+    try {
+        const data = await ses.sendEmail(params).promise()
+        console.info("sendEmail to", process.env.SES_IDENTITY_NAME, "MessageId", data.MessageId)
+    } catch (error) {
+        console.error('sendEmail error', error)
     }
 }
 
