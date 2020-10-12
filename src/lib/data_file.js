@@ -180,20 +180,22 @@ const sendMail = async(countryData, regionalData, provinceData) => {
     Daily Confirmed: ${dailyCountryData.totale_nuovi_casi} (${Math.round(dailyCountryData.totale_nuovi_casi/dailyCountryData.nuovi_casi_testati*10000)/100}% on Daily People Tested) 
     Daily Tests: ${dailyCountryData.nuovi_tamponi}
     Daily People Tested: ${dailyCountryData.nuovi_casi_testati}
-    Daily Hospedalized: ${dailyCountryData.nuovi_ricoverati_con_sintomi}
+    Daily Hospitalized: ${dailyCountryData.nuovi_ricoverati_con_sintomi}
     Daily Intensive Care: ${dailyCountryData.nuovi_terapia_intensiva}
     Daily Deads: ${dailyCountryData.nuovi_deceduti}
     Total Intensive Care: ${dailyCountryData.terapia_intensiva}
-${process.env.SES_REGION_DATA}
+${process.env.SES_REGION_DATA} 
     Daily Confirmed: ${dailyRegionData.totale_nuovi_casi} (${Math.round(dailyRegionData.totale_nuovi_casi/dailyRegionData.nuovi_casi_testati*10000)/100}% on Daily People Tested)
-    Dailt Tests: ${dailyRegionData.nuovi_tamponi} 
+    Daily Tests: ${dailyRegionData.nuovi_tamponi} 
     Daily People Tested: ${dailyRegionData.nuovi_casi_testati}
-    Daily Hospedalized: ${dailyRegionData.nuovi_ricoverati_con_sintomi}
+    Daily Hospitalized: ${dailyRegionData.nuovi_ricoverati_con_sintomi}
     Daily Intensive Care: ${dailyRegionData.nuovi_terapia_intensiva}
     Daily Deads: ${dailyRegionData.nuovi_deceduti}
     Total Intensive Care: ${dailyRegionData.terapia_intensiva}
 ${process.env.SES_PROVINCE_DATA}
-    Nuovi casi: ${dailyProvinceData.totale_nuovi_casi}
+    Daily Confirmed: ${dailyProvinceData.totale_nuovi_casi}
+
+https://heyteacher.github.io/COVID-19/#/
 `
                 }
             },
