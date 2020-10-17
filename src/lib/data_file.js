@@ -2,7 +2,8 @@ const axios = require('axios'),
     moment = require('moment'),
     createCsvStringifier = require('csv-writer').createObjectCsvStringifier,
     AWS = require('aws-sdk'),
-    ses = new AWS.SES();
+    ses = new AWS.SES(),
+    Twitter = require('twitter');
 
 exports.stringifyCSV = (data) => {
     const header = {
@@ -152,7 +153,7 @@ exports.buildDataFiles = async(day) => {
         targetProvDate == today
 
     if ((allUpdated && data.length > 0) || process.env.FORCE_EXTEND_DATA == 'true') {
-        await sendMail(originResponseCountry.data, originResponseRegion.data, originResponseProv.data)
+        await mailAndTweetData(originResponseCountry.data, originResponseRegion.data, originResponseProv.data)
     }
     return {
         allUpdated: allUpdated,
@@ -161,7 +162,7 @@ exports.buildDataFiles = async(day) => {
 }
 
 
-const sendMail = async(countryData, regionalData, provinceData) => {
+const mailAndTweetData = async(countryData, regionalData, provinceData) => {
     if (!process.env.SES_IDENTITY_NAME || process.env.SES_IDENTITY_NAME.trim() == "") {
         return
     }
@@ -169,34 +170,46 @@ const sendMail = async(countryData, regionalData, provinceData) => {
     const dailyRegionData = getDailyRows(extendData(regionalData.filter(row => row.denominazione_regione === process.env.SES_REGION_DATA)))[0]
     const dailyProvinceData = getDailyRows(extendData(provinceData.filter(row => row.denominazione_provincia === process.env.SES_PROVINCE_DATA), true))[0]
 
-    var params = {
+    const numberFormat = new Intl.NumberFormat();
+    const textCountry = `COVID-19 Italy Daily Update
+
+Daily Confirmed: ${numberFormat.format(dailyCountryData.totale_nuovi_casi)} (${Math.round(dailyCountryData.totale_nuovi_casi / dailyCountryData.nuovi_casi_testati * 10000) / 100}% on Daily People Tested) 
+Daily Tests: ${numberFormat.format(dailyCountryData.nuovi_tamponi)}
+Daily People Tested: ${numberFormat.format(dailyCountryData.nuovi_casi_testati)}
+Daily Hospitalized: ${numberFormat.format(dailyCountryData.nuovi_ricoverati_con_sintomi)}
+Daily Intensive Care: ${numberFormat.format(dailyCountryData.nuovi_terapia_intensiva)}
+Total Intensive Care: ${numberFormat.format(dailyCountryData.terapia_intensiva)}
+Daily Deads: ${numberFormat.format(dailyCountryData.nuovi_deceduti)}
+
+`
+
+    const textRegion = `COVID-19 ${process.env.SES_REGION_DATA}  Daily Update
+
+Daily Confirmed: ${numberFormat.format(dailyRegionData.totale_nuovi_casi)} (${Math.round(dailyRegionData.totale_nuovi_casi / dailyRegionData.nuovi_casi_testati * 10000) / 100}% on Daily People Tested)
+Daily Tests: ${numberFormat.format(dailyRegionData.nuovi_tamponi)} 
+Daily People Tested: ${numberFormat.format(dailyRegionData.nuovi_casi_testati)}
+Daily Hospitalized: ${numberFormat.format(dailyRegionData.nuovi_ricoverati_con_sintomi)}
+Daily Intensive Care: ${numberFormat.format(dailyRegionData.nuovi_terapia_intensiva)}
+Total Intensive Care: ${numberFormat.format(dailyRegionData.terapia_intensiva)}
+Daily Deads: ${numberFormat.format(dailyRegionData.nuovi_deceduti)}
+
+`
+    const textProvince = `COVID-19 ${process.env.SES_PROVINCE_DATA} Daily Update
+
+Daily Confirmed: ${numberFormat.format(dailyProvinceData.totale_nuovi_casi)}
+
+`
+
+    const textURL = `
+https://heyteacher.github.io/COVID-19/#/`
+    const params = {
         Destination: {
             ToAddresses: [process.env.SES_IDENTITY_NAME]
         },
         Message: {
             Body: {
                 Text: {
-                    Data: `Italy
-    Daily Confirmed: ${dailyCountryData.totale_nuovi_casi} (${Math.round(dailyCountryData.totale_nuovi_casi/dailyCountryData.nuovi_casi_testati*10000)/100}% on Daily People Tested) 
-    Daily Tests: ${dailyCountryData.nuovi_tamponi}
-    Daily People Tested: ${dailyCountryData.nuovi_casi_testati}
-    Daily Hospitalized: ${dailyCountryData.nuovi_ricoverati_con_sintomi}
-    Daily Intensive Care: ${dailyCountryData.nuovi_terapia_intensiva}
-    Daily Deads: ${dailyCountryData.nuovi_deceduti}
-    Total Intensive Care: ${dailyCountryData.terapia_intensiva}
-${process.env.SES_REGION_DATA} 
-    Daily Confirmed: ${dailyRegionData.totale_nuovi_casi} (${Math.round(dailyRegionData.totale_nuovi_casi/dailyRegionData.nuovi_casi_testati*10000)/100}% on Daily People Tested)
-    Daily Tests: ${dailyRegionData.nuovi_tamponi} 
-    Daily People Tested: ${dailyRegionData.nuovi_casi_testati}
-    Daily Hospitalized: ${dailyRegionData.nuovi_ricoverati_con_sintomi}
-    Daily Intensive Care: ${dailyRegionData.nuovi_terapia_intensiva}
-    Daily Deads: ${dailyRegionData.nuovi_deceduti}
-    Total Intensive Care: ${dailyRegionData.terapia_intensiva}
-${process.env.SES_PROVINCE_DATA}
-    Daily Confirmed: ${dailyProvinceData.totale_nuovi_casi}
-
-https://heyteacher.github.io/COVID-19/#/
-`
+                    Data: `${textCountry}${textRegion}${textProvince}${textURL}`
                 }
             },
             Subject: { Data: "COVID-19 Update" }
@@ -208,6 +221,30 @@ https://heyteacher.github.io/COVID-19/#/
         console.info("sendEmail to", process.env.SES_IDENTITY_NAME, "MessageId", data.MessageId)
     } catch (error) {
         console.error('sendEmail error', error)
+    }
+
+    try {
+        var client = new Twitter({
+            consumer_key: process.env.TWITTER_CONSUMER_KEY,
+            consumer_secret: process.env.TWITTER_CONSUMER_SECRET,
+            access_token_key: process.env.TWITTER_TOKEN_KEY,
+            access_token_secret: process.env.TWITTER_TOKEN_SECRET
+        });
+        // const tweetRegion = await client.post(
+        //     'statuses/update', {
+        //         status: `${textRegion}${textURL}${process.env.SES_REGION_DATA}`
+        //     }
+        // )
+        // console.info("region tweet", tweetRegion.id, tweetRegion.created_at)
+
+        const tweetCountry = await client.post(
+            'statuses/update', {
+                status: `${textCountry}${textURL}`
+            }
+        )
+        console.info("country tweet", tweetCountry.id, tweetCountry.created_at)
+    } catch (error) {
+        console.error('tweet error', error)
     }
 }
 

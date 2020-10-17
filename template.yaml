@@ -25,6 +25,20 @@ Parameters:
   SESProvinceData:
     Type: String
     Default: ''
+
+  ### Twitter configuration
+  TwitterConsumerKey:
+    Type: String
+    Default: ''
+  TwitterConsumerSecret:
+    Type: String
+    Default: ''
+  TwitterTokenKey:
+    Type: String
+    Default: ''
+  TwitterTokenSecret:
+    Type: String
+    Default: ''
   
 
   ### URL of input dataset
@@ -228,6 +242,10 @@ Resources:
           SES_IDENTITY_NAME: !Ref SESIdentityName
           SES_REGION_DATA: !Ref SESRegionData
           SES_PROVINCE_DATA: !Ref SESProvinceData
+          TWITTER_CONSUMER_KEY: !Ref TwitterConsumerKey
+          TWITTER_CONSUMER_SECRET: !Ref TwitterConsumerSecret
+          TWITTER_TOKEN_KEY: !Ref TwitterTokenKey
+          TWITTER_TOKEN_SECRET: !Ref TwitterTokenSecret
       Policies:
         - SESCrudPolicy:
             IdentityName: !Ref SESIdentityName
