@@ -171,37 +171,38 @@ const mailAndTweetData = async(countryData, regionalData, provinceData) => {
     const dailyProvinceData = getDailyRows(extendData(provinceData.filter(row => row.denominazione_provincia === process.env.SES_PROVINCE_DATA), true))[0]
 
     const numberFormat = new Intl.NumberFormat();
-    const textCountry = `COVID-19 Italy Daily Update
+    const textCountry = `COVID-19 Italy daily update
 
-Daily Confirmed: ${numberFormat.format(dailyCountryData.totale_nuovi_casi)} (${Math.round(dailyCountryData.totale_nuovi_casi / dailyCountryData.nuovi_casi_testati * 10000) / 100}% on Daily People Tested) 
-Daily Tests: ${numberFormat.format(dailyCountryData.nuovi_tamponi)}
-Daily People Tested: ${numberFormat.format(dailyCountryData.nuovi_casi_testati)}
-Daily Hospitalized: ${numberFormat.format(dailyCountryData.nuovi_ricoverati_con_sintomi)}
-Daily Intensive Care: ${numberFormat.format(dailyCountryData.nuovi_terapia_intensiva)}
-Total Intensive Care: ${numberFormat.format(dailyCountryData.terapia_intensiva)}
-Daily Deads: ${numberFormat.format(dailyCountryData.nuovi_deceduti)}
-
-`
-
-    const textRegion = `COVID-19 ${process.env.SES_REGION_DATA}  Daily Update
-
-Daily Confirmed: ${numberFormat.format(dailyRegionData.totale_nuovi_casi)} (${Math.round(dailyRegionData.totale_nuovi_casi / dailyRegionData.nuovi_casi_testati * 10000) / 100}% on Daily People Tested)
-Daily Tests: ${numberFormat.format(dailyRegionData.nuovi_tamponi)} 
-Daily People Tested: ${numberFormat.format(dailyRegionData.nuovi_casi_testati)}
-Daily Hospitalized: ${numberFormat.format(dailyRegionData.nuovi_ricoverati_con_sintomi)}
-Daily Intensive Care: ${numberFormat.format(dailyRegionData.nuovi_terapia_intensiva)}
-Total Intensive Care: ${numberFormat.format(dailyRegionData.terapia_intensiva)}
-Daily Deads: ${numberFormat.format(dailyRegionData.nuovi_deceduti)}
+daily confirmed: ${numberFormat.format(dailyCountryData.totale_nuovi_casi)} (${Math.round(dailyCountryData.totale_nuovi_casi / dailyCountryData.nuovi_casi_testati * 10000) / 100}% on daily people tested) 
+daily tests: ${numberFormat.format(dailyCountryData.nuovi_tamponi)}
+daily people Tested: ${numberFormat.format(dailyCountryData.nuovi_casi_testati)}
+daily hospitalized: ${numberFormat.format(dailyCountryData.nuovi_ricoverati_con_sintomi)}
+daily intensive Care: ${numberFormat.format(dailyCountryData.nuovi_terapia_intensiva)}
+total intensive Care: ${numberFormat.format(dailyCountryData.terapia_intensiva)}
+daily deads: ${numberFormat.format(dailyCountryData.nuovi_deceduti)}
 
 `
-    const textProvince = `COVID-19 ${process.env.SES_PROVINCE_DATA} Daily Update
 
-Daily Confirmed: ${numberFormat.format(dailyProvinceData.totale_nuovi_casi)}
+    const textRegion = `COVID-19 ${process.env.SES_REGION_DATA}  daily update
+
+daily confirmed: ${numberFormat.format(dailyRegionData.totale_nuovi_casi)} (${Math.round(dailyRegionData.totale_nuovi_casi / dailyRegionData.nuovi_casi_testati * 10000) / 100}% on daily people tested)
+daily tests: ${numberFormat.format(dailyRegionData.nuovi_tamponi)} 
+daily people tested: ${numberFormat.format(dailyRegionData.nuovi_casi_testati)}
+daily hospitalized: ${numberFormat.format(dailyRegionData.nuovi_ricoverati_con_sintomi)}
+daily intensive care: ${numberFormat.format(dailyRegionData.nuovi_terapia_intensiva)}
+total intensive care: ${numberFormat.format(dailyRegionData.terapia_intensiva)}
+daily deads: ${numberFormat.format(dailyRegionData.nuovi_deceduti)}
+
+`
+    const textProvince = `COVID-19 ${process.env.SES_PROVINCE_DATA} daily update
+
+daily confirmed: ${numberFormat.format(dailyProvinceData.totale_nuovi_casi)}
 
 `
 
     const textURL = `
 https://heyteacher.github.io/COVID-19/#/`
+
     const params = {
         Destination: {
             ToAddresses: [process.env.SES_IDENTITY_NAME]
@@ -212,7 +213,7 @@ https://heyteacher.github.io/COVID-19/#/`
                     Data: `${textCountry}${textRegion}${textProvince}${textURL}`
                 }
             },
-            Subject: { Data: "COVID-19 Update" }
+            Subject: { Data: "COVID-19 daily update" }
         },
         Source: process.env.SES_IDENTITY_NAME
     };
@@ -223,6 +224,7 @@ https://heyteacher.github.io/COVID-19/#/`
         console.error('sendEmail error', error)
     }
 
+    // tweet daily update
     try {
         var client = new Twitter({
             consumer_key: process.env.TWITTER_CONSUMER_KEY,
