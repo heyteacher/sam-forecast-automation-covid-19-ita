@@ -8,7 +8,7 @@
     "dependencies": {
         "@octokit/rest": "^16.43.2",
         "aws-sdk": "^2.765.0",
-        "axios": "^0.19.2",
+        "axios": "^0.21.1",
         "crypto": "^1.0.1",
         "csv-writer": "^1.6.0",
         "fast-csv": "^4.3.6",
