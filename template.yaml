@@ -230,7 +230,7 @@ Resources:
       CodeUri: src/
       Handler: lambda.extendDatasetHandler
       Runtime: nodejs12.x
-      Timeout: 60
+      Timeout: 240
       MemorySize: 512
       Environment:
         Variables:
@@ -497,8 +497,13 @@ Resources:
                   "Retry": [{
                     "ErrorEquals": ["ToBeUpdatedError"],
                     "IntervalSeconds": 180,
-                    "MaxAttempts": 40,
+                    "MaxAttempts": 100,
                     "BackoffRate": 1
+                  },{
+                    "ErrorEquals": ["States.ALL"],
+                    "IntervalSeconds": 300,
+                    "MaxAttempts": 3,
+                    "BackoffRate": 2
                   }],
                   "Next": "CheckDaysOfWeekForecastExec"
                 },
