@@ -170,33 +170,34 @@ const mailAndTweetData = async(countryData, regionalData, provinceData) => {
     const dailyRegionData = getDailyRows(extendData(regionalData.filter(row => row.denominazione_regione === process.env.SES_REGION_DATA)))[0]
     const dailyProvinceData = getDailyRows(extendData(provinceData.filter(row => row.denominazione_provincia === process.env.SES_PROVINCE_DATA), true))[0]
 
-    const numberFormat = new Intl.NumberFormat();
-    const textCountry = `COVID-19 Italy daily update
+    const numberFormatTotal = new Intl.NumberFormat("en-GB", { style: "decimal" });
+    const numberFormatNew = new Intl.NumberFormat("en-GB", { style: "decimal", signDisplay: 'always' });
+    const textCountry = `COVID-19 ITA Daily Report
 
-daily confirmed: ${numberFormat.format(dailyCountryData.totale_nuovi_casi)} (${Math.round(dailyCountryData.totale_nuovi_casi / dailyCountryData.nuovi_casi_testati * 10000) / 100}% on daily people tested) 
-daily tests: ${numberFormat.format(dailyCountryData.nuovi_tamponi)}
-daily people Tested: ${numberFormat.format(dailyCountryData.nuovi_casi_testati)}
-daily hospitalized: ${numberFormat.format(dailyCountryData.nuovi_ricoverati_con_sintomi)}
-daily intensive Care: ${numberFormat.format(dailyCountryData.nuovi_terapia_intensiva)}
-total intensive Care: ${numberFormat.format(dailyCountryData.terapia_intensiva)}
-daily deads: ${numberFormat.format(dailyCountryData.nuovi_deceduti)}
-
+New Confirmed: ${numberFormatNew.format(dailyCountryData.totale_nuovi_casi)} (${Math.round(dailyCountryData.totale_nuovi_casi / dailyCountryData.nuovi_casi_testati * 10000) / 100}% on New People Tested) 
+New Tests: ${numberFormatNew.format(dailyCountryData.nuovi_tamponi)}
+New People Tested: ${numberFormatNew.format(dailyCountryData.nuovi_casi_testati)}
+New Hospitalized: ${numberFormatNew.format(dailyCountryData.nuovi_ricoverati_con_sintomi)}
+Total Hospitalized: ${numberFormatTotal.format(dailyCountryData.ricoverati_con_sintomi)}
+New Intensive Care: ${numberFormatNew.format(dailyCountryData.nuovi_terapia_intensiva)}
+Total Intensive Care: ${numberFormatTotal.format(dailyCountryData.terapia_intensiva)}
+New Deads: ${numberFormatNew.format(dailyCountryData.nuovi_deceduti)}
 `
 
-    const textRegion = `COVID-19 ${process.env.SES_REGION_DATA}  daily update
+    const textRegion = `COVID-19 ${process.env.SES_REGION_DATA}  Daily Update
 
-daily confirmed: ${numberFormat.format(dailyRegionData.totale_nuovi_casi)} (${Math.round(dailyRegionData.totale_nuovi_casi / dailyRegionData.nuovi_casi_testati * 10000) / 100}% on daily people tested)
-daily tests: ${numberFormat.format(dailyRegionData.nuovi_tamponi)} 
-daily people tested: ${numberFormat.format(dailyRegionData.nuovi_casi_testati)}
-daily hospitalized: ${numberFormat.format(dailyRegionData.nuovi_ricoverati_con_sintomi)}
-daily intensive care: ${numberFormat.format(dailyRegionData.nuovi_terapia_intensiva)}
-total intensive care: ${numberFormat.format(dailyRegionData.terapia_intensiva)}
-daily deads: ${numberFormat.format(dailyRegionData.nuovi_deceduti)}
-
+New Confirmed: ${numberFormatNew.format(dailyRegionData.totale_nuovi_casi)} (${Math.round(dailyRegionData.totale_nuovi_casi / dailyRegionData.nuovi_casi_testati * 10000) / 100}% on New People Tested)
+New Tests: ${numberFormatNew.format(dailyRegionData.nuovi_tamponi)} 
+New People Tested: ${numberFormatNew.format(dailyRegionData.nuovi_casi_testati)}
+New Hospitalized: ${numberFormatNew.format(dailyRegionData.nuovi_ricoverati_con_sintomi)}
+Total Hospitalized: ${numberFormatTotal.format(dailyRegionData.ricoverati_con_sintomi)}
+New Intensive care: ${numberFormatNew.format(dailyRegionData.nuovi_terapia_intensiva)}
+Total Intensive care: ${numberFormatTotal.format(dailyRegionData.terapia_intensiva)}
+Daily Deads: ${numberFormatNew.format(dailyRegionData.nuovi_deceduti)}
 `
     const textProvince = `COVID-19 ${process.env.SES_PROVINCE_DATA} daily update
 
-daily confirmed: ${numberFormat.format(dailyProvinceData.totale_nuovi_casi)}
+daily confirmed: ${numberFormatNew.format(dailyProvinceData.totale_nuovi_casi)}
 
 `
 
