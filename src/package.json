@@ -7,7 +7,7 @@
     "license": "MIT",
     "dependencies": {
         "@octokit/rest": "^16.43.2",
-        "aws-sdk": "^2.765.0",
+        "aws-sdk": "^2.814.0",
         "axios": "^0.21.1",
         "crypto": "^1.0.1",
         "csv-writer": "^1.6.0",
