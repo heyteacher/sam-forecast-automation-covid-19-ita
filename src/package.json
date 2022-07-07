@@ -12,7 +12,7 @@
         "crypto": "^1.0.1",
         "csv-writer": "^1.6.0",
         "fast-csv": "^4.3.6",
-        "moment": "^2.29.0",
+        "moment": "^2.29.4",
         "twitter": "^1.7.1"
     },
     "scripts": {},
