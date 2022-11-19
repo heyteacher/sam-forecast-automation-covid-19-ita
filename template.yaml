@@ -110,7 +110,7 @@ Parameters:
   ### State maschine event rule schedule expression (minute, hour, day_of_month, month, day_of_week, year)
   StateMachineEventRuleScheduleExpression:
     Type: String
-    Default: cron(50 14 * * ? *)
+    Default: cron(59 23 * * THU *)
   # comma separated days of week when generate forecast. 0: Sunday, 1: Monday, ... 6: Saturnday  
   ForecastDaysOfWeekExecution:
     Type: String
@@ -134,7 +134,7 @@ Resources:
     Properties:
       CodeUri: src/
       Handler: lambda.describeDatasetHandler
-      Runtime: nodejs12.x
+      Runtime: nodejs16.x
       Timeout: 30
       MemorySize: 128
       Policies:
@@ -154,7 +154,7 @@ Resources:
     Properties:
       CodeUri: src/
       Handler: lambda.createDatasetHandler
-      Runtime: nodejs12.x
+      Runtime: nodejs16.x
       Timeout: 30
       MemorySize: 128
       Policies:
@@ -185,7 +185,7 @@ Resources:
     Properties:
       CodeUri: src/
       Handler: lambda.describePredictorHandler
-      Runtime: nodejs12.x
+      Runtime: nodejs16.x
       Timeout: 30
       MemorySize: 128
       Policies:
@@ -205,7 +205,7 @@ Resources:
     Properties:
       CodeUri: src/
       Handler: lambda.createPredictorHandler
-      Runtime: nodejs12.x
+      Runtime: nodejs16.x
       Timeout: 30
       MemorySize: 128
       Policies:
@@ -229,9 +229,9 @@ Resources:
     Properties:
       CodeUri: src/
       Handler: lambda.extendDatasetHandler
-      Runtime: nodejs12.x
-      Timeout: 240
-      MemorySize: 512
+      Runtime: nodejs16.x
+      Timeout: 900
+      MemorySize: 2024
       Environment:
         Variables:
           FORCE_EXTEND_DATA: !Ref ForceExtendData
@@ -264,7 +264,7 @@ Resources:
               return ret
           }
       Handler: index.handler
-      Runtime: nodejs12.x
+      Runtime: nodejs16.x
       Timeout: 30
       MemorySize: 128
       Environment:
@@ -277,7 +277,7 @@ Resources:
     Properties:
       CodeUri: src/
       Handler: lambda.createDatasetImportJobHandler
-      Runtime: nodejs12.x
+      Runtime: nodejs16.x
       Timeout: 30
       MemorySize: 512
       Policies:
@@ -317,7 +317,7 @@ Resources:
     Properties:
       CodeUri: src/
       Handler: lambda.createForecastHandler
-      Runtime: nodejs12.x
+      Runtime: nodejs16.x
       Timeout: 30
       MemorySize: 128
       Policies:
@@ -338,7 +338,7 @@ Resources:
     Properties:
       CodeUri: src/
       Handler: lambda.createForecastExportJobHandler
-      Runtime: nodejs12.x
+      Runtime: nodejs16.x
       Timeout: 30
       MemorySize: 128
       Policies:
@@ -368,7 +368,7 @@ Resources:
     Properties:
       CodeUri: ./src
       Handler: lambda.pushForecastInGithubHandler
-      Runtime: nodejs12.x
+      Runtime: nodejs16.x
       Timeout: 300
       Policies:
         - S3CrudPolicy:
@@ -402,7 +402,7 @@ Resources:
     Properties:
       CodeUri: src/
       Handler: lambda.deleteDatasetImportExportJob
-      Runtime: nodejs12.x
+      Runtime: nodejs16.x
       Timeout: 30
       MemorySize: 128
       Policies:
@@ -440,7 +440,7 @@ Resources:
     Properties:
       CodeUri: src/
       Handler: lambda.deleteForecastHandler
-      Runtime: nodejs12.x
+      Runtime: nodejs16.x
       Timeout: 30
       MemorySize: 128
       Policies:
@@ -496,13 +496,13 @@ Resources:
                   "Resource": "${ExtendDatasetFunctionArn}",
                   "Retry": [{
                     "ErrorEquals": ["ToBeUpdatedError"],
-                    "IntervalSeconds": 180,
-                    "MaxAttempts": 100,
+                    "IntervalSeconds": 72000,
+                    "MaxAttempts": 1,
                     "BackoffRate": 1
                   },{
                     "ErrorEquals": ["States.ALL"],
-                    "IntervalSeconds": 300,
-                    "MaxAttempts": 3,
+                    "IntervalSeconds": 7200,
+                    "MaxAttempts": 2,
                     "BackoffRate": 2
                   }],
                   "Next": "CheckDaysOfWeekForecastExec"
