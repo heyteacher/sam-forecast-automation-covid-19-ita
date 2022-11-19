@@ -182,10 +182,10 @@ Total Hospitalized: ${numberFormatTotal.format(dailyCountryData.ricoverati_con_s
 New Intensive Care: ${numberFormatNew.format(dailyCountryData.nuovi_terapia_intensiva)}
 Total Intensive Care: ${numberFormatTotal.format(dailyCountryData.terapia_intensiva)}
 New Deads: ${numberFormatNew.format(dailyCountryData.nuovi_deceduti)}
+
 `
 
     const textRegion = `COVID-19 ${process.env.SES_REGION_DATA}  Daily Update
-
 New Confirmed: ${numberFormatNew.format(dailyRegionData.totale_nuovi_casi)} (${Math.round(dailyRegionData.totale_nuovi_casi / dailyRegionData.nuovi_casi_testati * 10000) / 100}% on New People Tested)
 New Tests: ${numberFormatNew.format(dailyRegionData.nuovi_tamponi)} 
 New People Tested: ${numberFormatNew.format(dailyRegionData.nuovi_casi_testati)}
@@ -194,9 +194,9 @@ Total Hospitalized: ${numberFormatTotal.format(dailyRegionData.ricoverati_con_si
 New Intensive care: ${numberFormatNew.format(dailyRegionData.nuovi_terapia_intensiva)}
 Total Intensive care: ${numberFormatTotal.format(dailyRegionData.terapia_intensiva)}
 Daily Deads: ${numberFormatNew.format(dailyRegionData.nuovi_deceduti)}
+
 `
     const textProvince = `COVID-19 ${process.env.SES_PROVINCE_DATA} daily update
-
 daily confirmed: ${numberFormatNew.format(dailyProvinceData.totale_nuovi_casi)}
 
 `
