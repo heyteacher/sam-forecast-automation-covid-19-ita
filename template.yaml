@@ -110,7 +110,7 @@ Parameters:
   ### State maschine event rule schedule expression (minute, hour, day_of_month, month, day_of_week, year)
   StateMachineEventRuleScheduleExpression:
     Type: String
-    Default: cron(59 23 * * THU *)
+    Default: cron(59 23 ? * THU *)
   # comma separated days of week when generate forecast. 0: Sunday, 1: Monday, ... 6: Saturnday  
   ForecastDaysOfWeekExecution:
     Type: String
